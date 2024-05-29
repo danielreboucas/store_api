@@ -15,10 +15,12 @@ class ProductUsecase:
         self.collection = self.database.get_collection("products")
 
     async def create(self, body: ProductIn) -> ProductOut:
-        product_model = ProductModel(**body.model_dump())
-        await self.collection.insert_one(product_model.model_dump())
-
-        return ProductOut(**product_model.model_dump())
+        try:
+            product_model = ProductModel(**body.model_dump())
+            await self.collection.insert_one(product_model.model_dump())
+            return ProductOut(**product_model.model_dump())
+        except Exception as e:
+            raise BaseException(e)
 
     async def get(self, id: UUID) -> ProductOut:
         result = await self.collection.find_one({"id": id})
@@ -30,15 +32,21 @@ class ProductUsecase:
 
     async def query(self) -> List[ProductOut]:
         return [ProductOut(**item) async for item in self.collection.find()]
+    
+    async def get_product_by_price_range(self, min_price: float, max_price: float):
+        return [ProductOut(**item) async for item in self.collection.find({"price": { "$lt": max_price, "$gt": min_price}})]
 
     async def update(self, id: UUID, body: ProductUpdate) -> ProductUpdateOut:
-        result = await self.collection.find_one_and_update(
-            filter={"id": id},
-            update={"$set": body.model_dump(exclude_none=True)},
-            return_document=pymongo.ReturnDocument.AFTER,
-        )
+        try:
+            result = await self.collection.find_one_and_update(
+                filter={"id": id},
+                update={"$set": body.model_dump(exclude_none=True)},
+                return_document=pymongo.ReturnDocument.AFTER,
+            )
 
-        return ProductUpdateOut(**result)
+            return ProductUpdateOut(**result)
+        except:
+            raise NotFoundException(message=f"Product with id: {id} was not found")
 
     async def delete(self, id: UUID) -> bool:
         product = await self.collection.find_one({"id": id})
